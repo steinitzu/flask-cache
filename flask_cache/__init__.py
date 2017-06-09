@@ -223,7 +223,7 @@ class Cache(object):
         "Proxy function for internal cache object."
         self.cache.set_many(*args, **kwargs)
 
-    def cached(self, timeout=None, key_prefix='view/%s', unless=None):
+    def cached(self, timeout=None, key_prefix='view/%s', unless=None, recache=None):
         """
         Decorator. Use this to cache a function. By default the cache key
         is `view/request.path`. You are able to use this decorator with any
@@ -275,6 +275,12 @@ class Cache(object):
         :param unless: Default None. Cache will *always* execute the caching
                        facilities unless this callable is true.
                        This will bypass the caching entirely.
+
+        :param recache: Default None. Simulate a cache miss when callable returns True,
+                        triggering a refresh of the cache.
+
+                       
+                    
         """
 
         def decorator(f):
@@ -293,11 +299,12 @@ class Cache(object):
                     logger.exception("Exception possibly due to cache backend.")
                     return f(*args, **kwargs)
 
-                if rv is None:
+                # if recache is true, fetch from origin and re-save to cache
+                if rv is None or callable(recache) and recache():
                     rv = f(*args, **kwargs)
                     try:
                         self.cache.set(cache_key, rv,
-                                   timeout=decorated_function.cache_timeout)
+                                       timeout=decorated_function.cache_timeout)
                     except Exception:
                         if current_app.debug:
                             raise
